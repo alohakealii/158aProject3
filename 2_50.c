@@ -3,7 +3,7 @@
 #include <time.h>
 
 #define ITERATIONS 100
-#define STATIONS 5
+#define MAX_STATIONS 100
 
 int min(int n, int m) {
 	if (n < m)
@@ -23,30 +23,37 @@ int computeBackoff(int n) {
 	return rand() % k;
 }
 
-int done(int *stations) {
+int done(int *transmitted, int num_of_stations) {
 	int i;
-	for (i = 0; i < STATIONS; i++) {
-		if (!stations[i]) {
+	for (i = 0; i < num_of_stations; i++) {
+		if (!transmitted[i]) {
 			return 0;
 		}
 	}
 	return 1;
 }
 
-void main() {
+void main(int argc, char *argv[]) {
+	if (argc != 2) {
+		fprintf(stderr, "Run with number of stations as an argument.\n  For example: \"main.exe 20\"\n");
+		exit(1);
+	}
+
+	int STATIONS = atoi(argv[1]);
+
 	srand(time(NULL));
 	int first[ITERATIONS], second[ITERATIONS], last[ITERATIONS];
 	int iteration;
 	for (iteration = 0; iteration < ITERATIONS; iteration++) {
 
 		// init data for iteration
-		int timeSent[STATIONS] = {0};
-		int nextTimeToSend[STATIONS] = {0};
-		int collisionCount[STATIONS] = {0};
+		int timeSent[MAX_STATIONS] = {0};
+		int nextTimeToSend[MAX_STATIONS] = {0};
+		int collisionCount[MAX_STATIONS] = {0};
 		int T = 0;
 
 		// loop for all stations to transmit
-		while (!done(timeSent)) {
+		while (!done(timeSent, STATIONS)) {
 
 			// set sending counter to 0, collision to false
 			int sending = 0;
@@ -90,44 +97,13 @@ void main() {
 			minimum = min(timeSent[i], minimum);
 		}
 		first[iteration] = minimum;
-		minimum = 9999;
-
-		// calculate delay of second transmitted station
-		for (i = 0; i < STATIONS; i++) {
-			if (timeSent[i] > first[iteration]) {
-				minimum = min(timeSent[i], minimum);
-			}
-		}
-		second[iteration] = minimum;
-
-		int maximum = 0;
-		// calculate delay of last transmitted station
-		for (i = 0; i < STATIONS; i++) {
-			maximum = max(timeSent[i], maximum);
-		}
-		last[iteration] = maximum;
-
-
-
-		// print all times transmitted
-		printf("%d:", iteration+1);
-		for (i = 0; i < STATIONS; i++) {
-			if (i % 6 == 0)
-				printf("\n%3d: %4d", i+1, timeSent[i]);
-			else
-				printf("   %3d: %4d", i+1, timeSent[i]);
-		}
-		printf("\n\n");
-
 	}
 
 	// calculate averages
 	int sumFirst = 0, sumSecond = 0, sumLast = 0;
 	int i;
-	for (i = 0; i < ITERATIONS; i++) {
+	for (i = 0; i < ITERATIONS; i++)
 		sumFirst += first[i];
-		sumSecond += second[i];
-		sumLast += last[i];
-	}
-	printf("\nAverage first delay: %d\nAverage second delay: %d\nAverage last delay: %d\n", sumFirst/ITERATIONS, sumSecond/ITERATIONS, sumLast/ITERATIONS);
+	
+	printf("\nAverage first delay: %d\n", sumFirst/ITERATIONS);
 }

@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define ITERATIONS 100
+#define STATIONS 5
+
 int min(int n, int m) {
 	if (n < m)
 		return n;
@@ -15,15 +18,14 @@ int max(int n, int m) {
 }
 
 int computeBackoff(int n) {
-	int k;
-	k = min(n, 10);
+	int k = min(n, 10);
 	k = (int)pow(2, k);
 	return rand() % k;
 }
 
 int done(int *stations) {
 	int i;
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < STATIONS; i++) {
 		if (!stations[i]) {
 			return 0;
 		}
@@ -33,102 +35,86 @@ int done(int *stations) {
 
 void main() {
 	srand(time(NULL));
-	int first[500], second[500], fifth[500];
+	int first[ITERATIONS], second[ITERATIONS], last[ITERATIONS];
 	int iteration;
-	for (iteration = 0; iteration < 500; iteration++) {
+	for (iteration = 0; iteration < ITERATIONS; iteration++) {
 
 		// init data for iteration
-		int stations[5] = {0};
-		int backoff[5] = {0};
-		int collisions[5] = {0};
-		int sending[5] = {0};
-		int T = 1;
+		int timeSent[STATIONS] = {0};
+		int nextTimeToSend[STATIONS] = {0};
+		int collisionCount[STATIONS] = {0};
+		int T = 0;
 
 		// loop for all stations to transmit
-		while (!done(stations)) {
+		while (!done(timeSent)) {
 
-			// set transmitted flag to false
-			int transmitted = 0;
+			// set sending counter to 0, collision to false
+			int sending = 0;
+			int collision = 0;
+
+			int sendingIndex = -1;
 
 			int i;
-			// attempt to transmit
-			for (i = 0; i < 5; i++) {
-
-				// make sure the station needs to transmit
-				if (!stations[i] && !backoff[i]) {
-					sending[i] = 1;
-					// check if another station is transmitting in this timeslot
-					if (!transmitted) {
-						transmitted = 1;
-						stations[i] = T;
+			// check each station
+			for (i = 0; i < STATIONS; i++) {
+				int j;
+				// check if this is the only station trying to send
+				for (j = 0; j < STATIONS; j++)
+					if (nextTimeToSend[j] == T) {
+						sending++;
+						sendingIndex = j;
 					}
-					else {
-						int j;
 
-						// set backoff for all stations transmitting this timeslot
-						for (j = 0; j < 5; j++) {
-							if (sending[j]) {
-								collisions[j]++;
-								backoff[j] = computeBackoff(collisions[j]);
-								stations[j] = 0;
-							}
-						}
-					}
+				// set timeSent if only one trying to send, else set new times to send
+				if (sending == 1) {
+					timeSent[sendingIndex] = T;
 				}
-				// code for station that is backing off
-				else if (!stations[i] && backoff[i]) {
-					backoff[i]--;
+				else if (sending > 1) {
+					for (j = 0; j < STATIONS; j++)
+						if (nextTimeToSend[j] == T) {
+							collisionCount[j]++;
+							nextTimeToSend[j] = T + computeBackoff(collisionCount[j]);
+						}
 				}
 			}
 
 			// increment time
 			T++;
-
-			// reset sending flags
-			for (i = 0; i < 5; i++)
-				sending[i] = 0;
 		}
 
-		int minimum = 500;
+		int minimum = 9999;
 		int i;
 
 		// calculate delay of first transmitted station
-		for (i = 0; i < 5; i++) {
-			minimum = min(stations[i], minimum);
+		for (i = 0; i < STATIONS; i++) {
+			minimum = min(timeSent[i], minimum);
 		}
 		first[iteration] = minimum;
-		minimum = 500;
+		minimum = 9999;
 
 		// calculate delay of second transmitted station
-		for (i = 0; i < 5; i++) {
-			if (stations[i] > first[iteration]) {
-				minimum = min(stations[i], minimum);
+		for (i = 0; i < STATIONS; i++) {
+			if (timeSent[i] > first[iteration]) {
+				minimum = min(timeSent[i], minimum);
 			}
 		}
 		second[iteration] = minimum;
 
 		int maximum = 0;
-		// calculate delay of fifth transmitted station
-		for (i = 0; i < 5; i++) {
-			maximum = max(stations[i], maximum);
+		// calculate delay of last transmitted station
+		for (i = 0; i < STATIONS; i++) {
+			maximum = max(timeSent[i], maximum);
 		}
-		fifth[iteration] = maximum;
-
-
-
-		// print all
-		for (i = 0; i < 5; i++)
-			printf("1: %2d   2: %2d   3: %2d   4: %2d   5: %2d\n", stations[0], stations[1], stations[2], stations[3], stations[4]);
-
+		last[iteration] = maximum;
 	}
 
 	// calculate averages
-	int sumFirst = 0, sumSecond = 0, sumFifth = 0;
+	int sumFirst = 0, sumSecond = 0, sumLast = 0;
 	int i;
-	for (i = 0; i < 500; i++) {
+	for (i = 0; i < ITERATIONS; i++) {
 		sumFirst += first[i];
 		sumSecond += second[i];
-		sumFifth += fifth[i];
+		sumLast += last[i];
 	}
-	printf("\nAverage first delay: %d\nAverage second delay: %d\nAverage fifth delay: %d\n", sumFirst/500 - 1, sumSecond/500 - 1, sumFifth/500 - 1);
+	printf("\nAverage first delay: %d\nAverage second delay: %d\nAverage last delay: %d\n", sumFirst/ITERATIONS, sumSecond/ITERATIONS, sumLast/ITERATIONS);
 }
