@@ -35,7 +35,7 @@ int done(int *stations) {
 
 void main() {
 	srand(time(NULL));
-	int first[ITERATIONS], second[ITERATIONS], last[ITERATIONS], firstIsTwoCount = 0, firstOverTenCount = 0;
+	int first[ITERATIONS], second[ITERATIONS], last[ITERATIONS];
 	int iteration;
 	for (iteration = 0; iteration < ITERATIONS; iteration++) {
 
@@ -58,22 +58,22 @@ void main() {
 			// check each station
 			for (i = 0; i < STATIONS; i++) {
 				int j;
-				// check if this is the only stations trying to send
+				// check if this is the only station trying to send
 				for (j = 0; j < STATIONS; j++)
 					if (nextTimeToSend[j] == T) {
 						sending++;
 						sendingIndex = j;
 					}
 
-				// attempt to transmit if not waiting
+				// set timeSent if only one trying to send, else set new times to send
 				if (sending == 1) {
 					timeSent[sendingIndex] = T;
 				}
 				else if (sending > 1) {
 					for (j = 0; j < STATIONS; j++)
 						if (nextTimeToSend[j] == T) {
-							nextTimeToSend[j] = T + computeBackoff(collisionCount[j]);
 							collisionCount[j]++;
+							nextTimeToSend[j] = T + computeBackoff(collisionCount[j]);
 						}
 				}
 			}
@@ -89,27 +89,23 @@ void main() {
 		for (i = 0; i < STATIONS; i++) {
 			minimum = min(timeSent[i], minimum);
 		}
-		first[iteration] = minimum - 1;
-		if (minimum == 2)
-			firstIsTwoCount++;
-		else if (minimum > 10)
-			firstOverTenCount++;
+		first[iteration] = minimum;
 		minimum = 9999;
 
 		// calculate delay of second transmitted station
 		for (i = 0; i < STATIONS; i++) {
-			if (timeSent[i] > first[iteration] + 1) {
+			if (timeSent[i] > first[iteration]) {
 				minimum = min(timeSent[i], minimum);
 			}
 		}
-		second[iteration] = minimum - 1;
+		second[iteration] = minimum;
 
 		int maximum = 0;
 		// calculate delay of last transmitted station
 		for (i = 0; i < STATIONS; i++) {
 			maximum = max(timeSent[i], maximum);
 		}
-		last[iteration] = maximum - 1;
+		last[iteration] = maximum;
 
 
 
@@ -133,7 +129,5 @@ void main() {
 		sumSecond += second[i];
 		sumLast += last[i];
 	}
-	printf("First is two %d times\nFirst over ten %d times\n", firstIsTwoCount, firstOverTenCount);
-	printf("Sums:  first=%d, second=%d, last=%d\n", sumFirst, sumSecond, sumLast);
 	printf("\nAverage first delay: %d\nAverage second delay: %d\nAverage last delay: %d\n", sumFirst/ITERATIONS, sumSecond/ITERATIONS, sumLast/ITERATIONS);
 }
