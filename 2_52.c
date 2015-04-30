@@ -103,15 +103,17 @@ void main(int argc, char *argv[]) {
 				maximum = max(maximum, timeSent[i]);
 			}
 			contentionInterval[iteration] = maximum / STATIONS;
-			// printf("Contention interval is %d for lambda %d iteration %d\n", contentionInterval[iteration], lambda, iteration);
+			//printf("Contention interval is %3d for lambda %2d iteration %3d\n", contentionInterval[iteration], lambda, iteration);
 		}
 
 		// find minimum contention interval
 		int minimum = 9999;
+		int sumContention = 0;
 		int i;
 		for (i = 0; i < ITERATIONS; i++) {
 			minimum = min(minimum, contentionInterval[i]);
+			sumContention += contentionInterval[i];
 		}
-		printf("Lambda %2d minimum contention interval = %d\n", lambda, minimum);
+		printf("Lambda %2d minimum contention interval = %d\nAverage contention interval = %d\n\n", lambda, minimum, sumContention/ITERATIONS);
 	}
 }
