@@ -62,15 +62,16 @@ void main(int argc, char *argv[]) {
 				for (i = 0; i < STATIONS; i++) {
 					if (nextTimeToSend[i] == T-1 || nextTimeToSend[i] == T) {
 						sending++;
-						sendingIndex = i;
+						if (nextTimeToSend[i] == T)
+							sendingIndex = i;
 					}
 				}
 
 				// if only one station wants to send in the interval, and it wants to send
 				// at time T, then send.
-				if (sending == 1) {
+				if (sending == 1 && sendingIndex != -1) {
 					if (nextTimeToSend[sendingIndex] == T) {
-						timeSent[sendingIndex] == T;
+						timeSent[sendingIndex] = T;
 					}
 				}
 				// if more than one station wants to send in the interval, check if something tried
@@ -83,26 +84,16 @@ void main(int argc, char *argv[]) {
 							while (nextTimeToSend[i] <= T)
 								nextTimeToSend[i] = T + computeBackoff(lambda);
 						}
-						if (nextTimeToSend[i] <= T) {
+						if (nextTimeToSend[i] == T-1 || nextTimeToSend[i] == T) {
 							lastAttemptTime[i] = nextTimeToSend[i];
 							while (nextTimeToSend[i] <= T)
 								nextTimeToSend[i] = T + computeBackoff(lambda);
 						}
-						printf("T = %d, nextTimeToSend = %d\n", T, nextTimeToSend[i]);
 					}
 				}
 
 				// increment time
 				T++;
-				// printf("%d\n", T);
-
-				// for (i = 0; i < STATIONS; i++) {
-				// 	if (i == 0 || i == 10)
-				// 		printf("\n%3d", timeSent[i]);
-				// 	else
-				// 		printf(" %3d", timeSent[i]);
-				// }
-				// printf("\n");
 			}
 
 			// find the max timeSent, divide by number of stations to get contention interval
@@ -121,6 +112,6 @@ void main(int argc, char *argv[]) {
 		for (i = 0; i < ITERATIONS; i++) {
 			minimum = min(minimum, contentionInterval[i]);
 		}
-		printf("Lambda %d minimum contention interval = %d\n", lambda, minimum);
+		printf("Lambda %2d minimum contention interval = %d\n", lambda, minimum);
 	}
 }
