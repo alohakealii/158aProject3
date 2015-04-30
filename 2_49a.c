@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 #define ITERATIONS 100
 #define STATIONS 5
@@ -35,7 +36,7 @@ int done(int *stations) {
 
 void main() {
 	srand(time(NULL));
-	int first[ITERATIONS], second[ITERATIONS], last[ITERATIONS];
+	int first[ITERATIONS], second[ITERATIONS], third[ITERATIONS], fourth[ITERATIONS], fifth[ITERATIONS];
 	int iteration;
 	for (iteration = 0; iteration < ITERATIONS; iteration++) {
 
@@ -99,22 +100,48 @@ void main() {
 			}
 		}
 		second[iteration] = minimum;
+		minimum = 9999;
+
+		// calculate delay of third transmitted station
+		for (i = 0; i < STATIONS; i++) {
+			if (timeSent[i] > second[iteration]) {
+				minimum = min(timeSent[i], minimum);
+			}
+		}
+		third[iteration] = minimum;
+		minimum = 9999;
+
+		// calculate delay of fourth transmitted station
+		for (i = 0; i < STATIONS; i++) {
+			if (timeSent[i] > third[iteration]) {
+				minimum = min(timeSent[i], minimum);
+			}
+		}
+		fourth[iteration] = minimum;
 
 		int maximum = 0;
-		// calculate delay of last transmitted station
+		// calculate delay of fifth transmitted station
 		for (i = 0; i < STATIONS; i++) {
 			maximum = max(timeSent[i], maximum);
 		}
-		last[iteration] = maximum;
+		fifth[iteration] = maximum;
+	}
+
+	int i;
+	for (i = 0; i < ITERATIONS; i++) {
+		printf("%2d %2d %2d %2d %2d\n", first[i], second[i], third[i], fourth[i], fifth[i]);
 	}
 
 	// calculate averages
-	int sumFirst = 0, sumSecond = 0, sumLast = 0;
-	int i;
+	int sumFirst = 0, sumSecond = 0, sumThird = 0, sumFourth = 0, sumFifth = 0;
+	// int i;
 	for (i = 0; i < ITERATIONS; i++) {
 		sumFirst += first[i];
 		sumSecond += second[i];
-		sumLast += last[i];
+		sumThird += third[i];
+		sumFourth += fourth[i];
+		sumFifth += fifth[i];
 	}
-	printf("\nAverage first delay: %d\nAverage second delay: %d\nAverage last delay: %d\n", sumFirst/ITERATIONS, sumSecond/ITERATIONS, sumLast/ITERATIONS);
+	printf("\nAverage first delay: %d\nAverage second delay: %d\nAverage third delay: %d\nAverage fourth delay: %d\nAverage fifth delay: %d\n", 
+		sumFirst/ITERATIONS, sumSecond/ITERATIONS, sumThird/ITERATIONS, sumFourth/ITERATIONS, sumFifth/ITERATIONS);
 }
