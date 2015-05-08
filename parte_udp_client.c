@@ -187,6 +187,7 @@ int main(int argc, char *argv[])
     close(sockfd);
     printf("\n");
 
+    // print final output
     for (lambda = 20; lambda > 3; lambda -= 2) {
         printf("Lambda %2d, packets transmitted: %4d\n", lambda, successes[lambda]);
     }
