@@ -4,11 +4,22 @@
 #include <netinet/in.h>
 
 struct timeval slotTime;
+char message[1024] = {0};
+char message2[1024] = {0};
+int sockfd, length2;
+struct sockaddr_in cli2_addr;
+
+void *receiver(void *param) {
+    memset(message2, 0, sizeof(message2));
+    length2 = recvfrom(sockfd, &message2, sizeof(message2), 0, (struct sockaddr *) &cli2_addr, &sizeof(cli2_addr));
+    if (length2 < 0) {
+        printf("receiver thread error %d", length2);
+    }
+}
 
 int main(int argc, char *argv[])
 {
-    int sockfd, port;
-    int* csock;
+    int port;
     struct sockaddr_in serv_addr, cli_addr;
     int n;
     if (argc < 2) {
@@ -32,58 +43,64 @@ int main(int argc, char *argv[])
     }
     
     socklen_t clilen = sizeof(cli_addr);
-    pthread_t thread_id=0;
-    
-    while (true) {
-        csock = (int*)malloc(sizeof(int));
-        if((*csock = accept(sockfd, (sockaddr*)&serv_addr, &clilen))!= -1){
-            printf("Received connection from %s\n",inet_ntoa(sadr.sin_addr));
-            pthread_create(&thread_id,0,&SocketHandler, (void*)csock);
-            pthread_detach(thread_id);
-        }
-        else{
-            fprintf(stderr, "Error accepting %d\n", errno);
-        }
-    }
-    
-    
-    
-    // int rounds = 6;
-    
-    // int KB[6] = {1, 4, 8, 16, 32, 64};
-    char message[64000];
     
     int i;
     time_t t1, t2;
-    int switch = 0;
+    int length = 0;
     
     //set slot times
     slotTime.tv_sec = 0;
     slotTime.tv_usec = 800;
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &slotTime, sizeof(slotTime));
+
+    int recvID = 0;
+    pthread_t recvThreadID;
+    pthread_attr_t recvAttr;
+    pthread_attr_init(&recvAttr);
     
-    while (strlen(message) != 42) {
-        memset(&message, 0, strlen(message));
-        // printf("About to realloc to %2dKB\n", KB[i]);
-        // realloc(message, KB[i] * 1024);
-        // printf("Realloc'd successfully\n");
-        n = recvfrom(sockfd, message, sizeof(message), 0, (struct sockaddr *)&cli_addr, &clilen);
+    while (true) {
+        // thread receives the from the second client
+        pthread_create(&recvThreadID, &recvAttr, receiver, &recvID);
         
-        if (n < 0) {
-            fprintf(stderr,"ERROR reading from socket\n");
-            exit(1);
+        // receive from the first client
+        memset(message, 0, sizeof(message));
+        length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *) &cli_addr, &sizeof(cli_addr));
+        if (length < 0) {
+            printf("receiver thread error %d", length);
         }
-        
-        printf("Received strlen(message) = %d\n", strlen(message));
-        // printf("Received %2dKB, cycle %3d\n", KB[i], j);
-        // printf("Here is the message: %s\n", message);
-        
-        n = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&cli_addr, clilen);
-        // printf("Sent %2dKB, cycle %3d\n", strlen(message), j);
-        if (n < 0) {
-            fprintf(stderr,"ERROR writing to socket\n");
-            exit(1);
+
+        // make sure both receives are done
+        pthread_join(recvThreadID, NULL);
+
+        // check how many clients received packets from
+        // if two clients sent, collision
+        if (!length && !length2) {
+            memset(message, 0, sizeof(message));
+            message = "Collision";
+            length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli_addr, sizeof(cli_addr));
+            if (length < 0)
+                printf("Error sending to cli_addr\n");
+
+            length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli2_addr, sizeof(cli2_addr));
+            if (length < 0)
+                printf("Error sending to cli2_addr\n");
         }
+
+        // if one client sent, success
+        else if (!length || !length2) {
+            memset(message, 0, sizeof(message));
+            message = "Success";
+            if (!length)
+                length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli_addr, sizeof(cli_addr));
+            else
+                length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli2_addr, sizeof(cli2_addr));
+            if (length < 0)
+                printf("error sending success message\n");
+        }
+
+        // zero message buffers
+        memset(message, 0, sizeof(message));
+        memset(message2, 0, sizeof(message2));
     }
     
     close(sockfd);
