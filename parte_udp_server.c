@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
         if (length != -1 && length2 != -1) {
             printf("Collision\n");
             memset(message, 0, sizeof(message));
-            strncpy("Collision", message, 9);
+            strncpy(message, "Collision", 9);
             length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli_addr, clilen);
             if (length < 0)
                 printf("Error sending to cli_addr\n");
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
         else if (length != -1 || length2 != -1) {
             printf("Success\n");
             memset(message, 0, sizeof(message));
-            strncpy("Success", message, 7);
+            strncpy(message, "Success", 7);
             if (!length)
                 length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli_addr, sizeof(cli_addr));
             else
