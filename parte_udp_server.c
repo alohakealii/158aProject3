@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 
         // check how many clients received packets from
         // if two clients sent, collision
-        if (!length && !length2) {
+        if (length != -1 && length2 != -1) {
             printf("Collision\n");
             memset(message, 0, sizeof(message));
             strncpy("Collision", message, 9);
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
         }
 
         // if one client sent, success
-        else if (!length || !length2) {
+        else if (length != -1 || length2 != -1) {
             printf("Success\n");
             memset(message, 0, sizeof(message));
             strncpy("Success", message, 7);
