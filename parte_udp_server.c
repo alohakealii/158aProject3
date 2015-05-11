@@ -73,6 +73,8 @@ int main(int argc, char *argv[])
         // make sure both receives are done
         pthread_join(recvThreadID, NULL);
 
+        printf("Length = %d    length2 = %d\n", length, length2);
+
         // check how many clients received packets from
         // if two clients sent, collision
         if (!length && !length2) {
