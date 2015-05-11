@@ -4,6 +4,8 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <math.h>
+#include <string.h>
 
 // unsigned long totalLatency[1];
 struct timeval slotTime;
@@ -129,6 +131,7 @@ int main(int argc, char *argv[])
 
     int lambda;
     for (lambda = 20; lambda > 3; lambda -= 2) {
+        printf("Lambda %d:\n", lambda);
     	for (i = 0; i < 5000; i++) {
             timeToNext--;
 
@@ -144,9 +147,8 @@ int main(int argc, char *argv[])
             }
 
             memset(message, 0, sizeof(message));
-
             // if sent this timeslot, wait 2x timeslots to receive response
-            if (timeToNext == 0) {
+            if (timeToNext < 1) {
                 length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *)&serv_addr, &servlen);
                 if (length < 1) {
                     length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *)&serv_addr, &servlen);
@@ -159,19 +161,21 @@ int main(int argc, char *argv[])
                 length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *)&serv_addr, &servlen);
             }
 
-            // if collision, compute backoff until attempt retransmission
-            if (length == 9) {
-                printf("Collision sending in timeslot %d\n", i);
-                collisions++;
-                timeToNext = computeBackoff(collisions);
-            }
+            if (length > 0) {
+                // if collision, compute backoff until attempt retransmission
+                if (length == 9) {
+                    printf("Collision sending in timeslot %d\n", i);
+                    collisions++;
+                    timeToNext = computeBackoff(collisions);
+                }
 
-            // if success, compute next transmission
-            else if (length == 7) {
-                printf("Success sending in timeslot %d\n", i);
-                timeToNext == computeSend(lambda);
-                successes[lambda]++;
-                collisions = 0;
+                // if success, compute next transmission
+                else {
+                    printf("Success sending in timeslot %d\n", i);
+                    timeToNext == computeSend(lambda);
+                    successes[lambda]++;
+                    collisions = 0;
+                }
             }
 
             // dunno what else happens
