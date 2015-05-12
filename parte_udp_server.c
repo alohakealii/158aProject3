@@ -5,7 +5,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <arpa/inet.h>
 
 #define MAX_CONNECTIONS 2
 
