@@ -6,14 +6,12 @@
 #include <pthread.h>
 #include <math.h>
 #include <string.h>
+#include <fcntl.h>
 
-// unsigned long totalLatency[1];
 struct timeval slotTime;
 int sockfd, port, length;
 struct sockaddr_in serv_addr, my_addr;
 socklen_t servlen;
-// int done;
-// int timeslot;
 
 int min(int n, int m) {
     if (n < m)
@@ -31,57 +29,6 @@ int computeSend(int lambda) {
     return (0 - lambda) * (log((double)rand()/(double)RAND_MAX) / log(2));
 }
 
-// void *receiver(void *param) {
-//     char message[1024];
-//     int length = 1024;
-//     int successes = 0;
-//     int collisions = 0;
-
-//     while (!done) {
-//         memset(&message, 0, strlen(message));
-//         lastLength = length;
-//         length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *)&serv_addr, &servlen);
-//         if (length < 0) {
-//             fprintf(stderr,"\nERROR reading from socket\nsizeof(message)=%d\n", sizeof(message));
-//             exit(0);
-//         }
-
-//         if (length != lastLength) {
-//             printf("Received %d of %d size packets\n%d packets lost\n\n", count, lastLength, 100 - count);
-//             int i, flag = 0;
-//             for (i = 0; i < 1 && flag == 0; i++) {
-//                 if (lost[i] == -1) {
-//                     lost[i] = 100 - count;
-//                     flag = 1;
-
-//                     // finish time
-//                     gettimeofday(&finishTime, NULL);
-//                     printf("For 1KB:    Start time: %lu.%lu\nFinish time: %lu.%lu\n", startTime.tv_sec, startTime.tv_usec, finishTime.tv_sec, finishTime.tv_usec);
-//                     unsigned long totalSec = finishTime.tv_sec - startTime.tv_sec;
-//                     unsigned long usec;
-//                     if (finishTime.tv_usec > startTime.tv_usec) {
-//                         usec = finishTime.tv_usec - startTime.tv_usec;
-//                     }
-//                     else {
-//                         usec = 1000000 - startTime.tv_usec + finishTime.tv_usec;
-//                     }
-//                     totalLatency[i] = totalSec * 1000000 + usec;
-//                 }
-
-//             }
-
-
-//             count = 0;
-//         }
-
-//         count++;
-
-//         printf("Received %2d\n", strlen(message));
-//         // printf("Server response: %s\n",message);
-
-//     }
-// }
-
 int main(int argc, char *argv[])
 {
     if (argc < 3) {
@@ -91,7 +38,7 @@ int main(int argc, char *argv[])
 
     port = atoi(argv[2]);
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         fprintf(stderr,"ERROR opening socket\n");
         exit(0);
@@ -106,6 +53,15 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(port);
     servlen = sizeof(serv_addr);
 
+    if (connect(sockfd, (struct sockaddr *) &serv_addr, servlen) < 0) {
+        printf("Error on connect\n");
+        exit(1);
+    }
+
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(sockfd, &set);
+
     // done = 0;
     // timeslot = 0;
     int collisions = 0;
@@ -115,13 +71,7 @@ int main(int argc, char *argv[])
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &slotTime, sizeof(slotTime));
 
     int successes[20] = {0};
-
-    // int recvID = 0;
-    // pthread_t recvThreadID;
-    // pthread_attr_t recvAttr;
-    // pthread_attr_init(&recvAttr);
-    // pthread_create(&recvThreadID, &recvAttr, receiver, &recvID);
-
+    int selected = 0;
 
     int i;
     char message[1024];
@@ -136,9 +86,9 @@ int main(int argc, char *argv[])
             timeToNext--;
 
             // if supposed to send
-            if (timeToNext < 1) {
+            if (timeToNext == 0) {
                 memset(message, 'a', sizeof(message));
-        		length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&serv_addr, servlen);
+        		length = write(sockfd, message, sizeof(message));
         		printf("Sending in timeslot %d\n", i);
         		if (length < 0) {
         			fprintf(stderr,"ERROR writing to socket\n");
@@ -147,18 +97,18 @@ int main(int argc, char *argv[])
             }
 
             memset(message, 0, sizeof(message));
+            length = 0;
             // if sent this timeslot, wait 2x timeslots to receive response
+            // if didn't send this timeslot, select will take up timeslot (timeout)
+            selected = select(FD_SETSIZE, &set, (fd_set *)0, (fd_set *)0, &slotTime);
             if (timeToNext < 1) {
-                length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *)&serv_addr, &servlen);
-                if (length < 1) {
-                    length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *)&serv_addr, &servlen);
-                    i++;
+                if (selected < 0)
+                    printf("Error on select\n");
+                else if (selected == 0)
+                    printf("Timeout\n");
+                else {
+                    length = read(sockfd, &message, sizeof(message));
                 }
-            }
-
-            // if didn't send this timeslot, receive to take up timeslot (timeout)
-            else {
-                length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *)&serv_addr, &servlen);
             }
 
             if (length > 0) {
@@ -180,14 +130,11 @@ int main(int argc, char *argv[])
 
             // dunno what else happens
             else {
-                printf("Got %d from recvfrom function in timeslot %d\n", length, i);
+                //printf("Got %d from recvfrom function in timeslot %d\n", length, i);
             }
     	}
     }
 
-    // done = 1;
-
-    // pthread_join(recvThreadID, NULL);
     close(sockfd);
     printf("\n");
 

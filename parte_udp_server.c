@@ -1,109 +1,180 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <string.h>
-#include <pthread.h>
+#include <errno.h>
+#include <fcntl.h>
 
-struct timeval slotTime;
-char message[1024] = {0};
-char message2[1024] = {0};
-int sockfd, length2;
-struct sockaddr_in cli2_addr;
-socklen_t clilen2;
-
-void *receiver(void *param) {
-    memset(message2, 0, sizeof(message2));
-    length2 = recvfrom(sockfd, &message2, sizeof(message2), 0, (struct sockaddr *) &cli2_addr, &clilen2);
-}
+#define MAX_CONNECTIONS 2
 
 int main(int argc, char *argv[])
 {
-    int port;
-    struct sockaddr_in serv_addr, cli_addr;
-    int n;
     if (argc < 2) {
         fprintf(stderr,"ERROR, no port provided\n");
         exit(1);
     }
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)  {
         fprintf(stderr,"ERROR opening socket\n");
         exit(1);
     }
-    port = atoi(argv[1]);
+    printf("sockfd = %d\n", sockfd);
+
+    // allow multiple connections to the server address
+    int opt = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        fprintf(stderr, "ERROR setsockopt reuseaddr\n");
+        exit(1);
+    }
+
+    // setup address
+    int port = atoi(argv[1]);
+    struct sockaddr_in address;
+    socklen_t addr_len = sizeof(address);
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(port);
     
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(port);
-    
-    if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+    if (bind(sockfd, (struct sockaddr *) &address, addr_len) < 0) {
         fprintf(stderr,"ERROR on binding\n");
         exit(1);
     }
+
+    // listen for MAX_CONNECTIONS connections
+    if (listen(sockfd, MAX_CONNECTIONS) < 0) {
+        fprintf(stderr, "ERROR listen\n");
+        exit(1);
+    }
+
+    // socket data
+    fd_set readfds;
+    int client_socket[MAX_CONNECTIONS] = {0};
+    int max_sd, sd, new_sd;
+
+    // message buffers
+    char *message = malloc(1025);
+    char *message2 = malloc(1025);
+    memset(message, 0, sizeof(message));
+    memset(message2, 0, sizeof(message2));
     
-    socklen_t clilen = sizeof(cli_addr);
-    
-    int i;
-    time_t t1, t2;
+    // other variables used in infinite loop
     int length = 0;
-    
-    //set slot times
-    slotTime.tv_sec = 0;
-    slotTime.tv_usec = 800;
-    int errno = setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &slotTime, sizeof(slotTime));
-    if (errno < 0)
-        printf("setsockopt errno: %d\n", errno);
+    int value;
+    int i;
+    struct timeval slotTime;
 
-    int recvID = 0;
-    pthread_t recvThreadID;
-    pthread_attr_t recvAttr;
-    pthread_attr_init(&recvAttr);
-    
-    while (1) {
-        // thread receives the from the second client
-        pthread_create(&recvThreadID, &recvAttr, receiver, &recvID);
-        
-        // receive from the first client
-        memset(message, 0, sizeof(message));
-        
-        length = recvfrom(sockfd, &message, sizeof(message), 0, (struct sockaddr *) &cli_addr, &clilen);
+    printf("Entering infinite loop\n");
+    while (1) {        
 
+        // clear and add main sockfd to set
+        FD_ZERO(&readfds);
+        FD_SET(sockfd, &readfds);
 
-        // make sure both receives are done
-        pthread_join(recvThreadID, NULL);
+        max_sd = sockfd;
 
-        printf("Length = %d    length2 = %d\n", length, length2);
+        // add client sockets to set
+        for ( i = 0 ; i < MAX_CONNECTIONS ; i++) 
+        {
+            sd = client_socket[i];
+             
+            if(sd > 0)
+                FD_SET(sd , &readfds);
+             
+            if(sd > max_sd)
+                max_sd = sd;
+        }
 
-        // check how many clients received packets from
-        // if two clients sent, collision
-        if (length != -1 && length2 != -1) {
-            printf("Collision\n");
+        slotTime.tv_sec = 2;
+        slotTime.tv_usec = 800;
+
+        // for a slot time, wait to check if something happened on a socket
+        value = select(FD_SETSIZE, &readfds, NULL, NULL, &slotTime);
+
+        printf("Selected\n");
+
+        if (value < 0 && errno != EINTR) 
+            printf("ERROR select\n");
+
+        // if something happened on sockfd, it is a new connection
+        if (FD_ISSET(sockfd, &readfds)) {
+            if (new_sd = accept(sockfd, (struct sockaddr *) &address, &addr_len) < 0) {
+                fprintf(stderr, "ERROR accept\n");
+                exit(1);
+            }
+
+            printf("New connection, descriptor is %d, ip is %s, port is %d\n", new_sd, inet_ntoa(address.sin_addr), ntohs(address.sin_port));
+
+            // add new socket to array
+            for (i = 0; i < MAX_CONNECTIONS; i++) 
+            {
+                //if position is empty
+                if( client_socket[i] == 0 )
+                {
+                    client_socket[i] = new_sd;
+                    printf("Adding to list of sockets as %d\n" , i);                     
+                }
+            }
+        }
+
+        // if a client socket has data
+        if (FD_ISSET(client_socket[0], &readfds)) {
+            length = read(client_socket[0], message, sizeof(message));
+            if (length < 0) {
+                fprintf(stderr, "ERROR read client 0\n");
+            }
+            else {
+                printf("Read %d bytes from client 0\n", length);
+            }
+        }
+
+        if (FD_ISSET(client_socket[1], &readfds)) {
+            length = read(client_socket[1], message2, sizeof(message2));
+            if (length < 0) {
+                fprintf(stderr, "ERROR read client 1\n");
+            }
+            else {
+                printf("Read %d bytes from client 1\n", length);
+            }
+        }
+
+        // if received from both clients
+        if (strlen(message) > 0 && strlen(message2) > 0) {
             memset(message, 0, sizeof(message));
             strncpy(message, "Collision", 9);
-            length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli_addr, clilen);
-            if (length < 0)
-                printf("Error sending to cli_addr\n");
-
-            length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli2_addr, clilen2);
-            if (length < 0)
-                printf("Error sending to cli2_addr\n");
+            length = write(client_socket[0], message, strlen(message));
+            if (length < 0) {
+                fprintf(stderr, "ERROR write client 0\n");
+            }
+            length = write(client_socket[1], message, strlen(message));
+            if (length < 0) {
+                fprintf(stderr, "ERROR write client 1\n");
+            }
         }
 
-        // if one client sent, success
-        else if (length != -1 || length2 != -1) {
-            printf("Success\n");
-            memset(message, 0, sizeof(message));
-            strncpy(message, "Success", 7);
-            if (!length)
-                length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli_addr, sizeof(cli_addr));
-            else
-                length = sendto(sockfd, message, strlen(message), 0, (struct sockaddr *) &cli2_addr, sizeof(cli2_addr));
-            if (length < 0)
-                printf("error sending success message\n");
+        // if received from one client
+        else if (strlen(message) || strlen(message2)) {
+            if (strlen(message) > 0) {
+                memset(message, 0, sizeof(message));
+                strncpy(message, "Success", 7);
+                length = write(client_socket[0], message, strlen(message));
+                if (length < 0) {
+                    fprintf(stderr, "ERROR write client 0\n");
+                }
+            }
+            else {
+                memset(message2, 0, sizeof(message2));
+                strncpy(message2, "Success", 7);
+                length = write(client_socket[1], message2, strlen(message2));
+                if (length < 0) {
+                    fprintf(stderr, "ERROR write client 1\n");
+                }
+            }
         }
 
-        // zero message buffers
+        // clear message buffers
         memset(message, 0, sizeof(message));
         memset(message2, 0, sizeof(message2));
     }
