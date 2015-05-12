@@ -2,10 +2,13 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <netinet/in.h>
 #include <string.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 #define MAX_CONNECTIONS 2
 
@@ -37,6 +40,10 @@ int main(int argc, char *argv[])
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(port);
+
+    // client address
+    struct sockaddr_in cli_addr;
+    socklen_t clilen;
     
     if (bind(sockfd, (struct sockaddr *) &address, addr_len) < 0) {
         fprintf(stderr,"ERROR on binding\n");
@@ -92,25 +99,26 @@ int main(int argc, char *argv[])
                 max_sd = sd;
         }
 
-        slotTime.tv_sec = 1;
+        slotTime.tv_sec = 0;
         slotTime.tv_usec = 800;
 
         // for a slot time, wait to check if something happened on a socket
         value = select(FD_SETSIZE, &readfds, NULL, NULL, &slotTime);
 
-        printf("Selected\n");
+        printf("Selected %d\n", value);
 
         if (value < 0 && errno != EINTR) 
             printf("ERROR select\n");
 
         // if something happened on sockfd, it is a new connection
         if (FD_ISSET(sockfd, &readfds)) {
-            if (new_sd = accept(sockfd, (struct sockaddr *) &address, &addr_len) < 0) {
+            new_sd = accept(sockfd, (struct sockaddr *)&cli_addr, (socklen_t *)&clilen);
+            if (new_sd < 0) {
                 fprintf(stderr, "ERROR accept\n");
                 exit(1);
             }
 
-            printf("New connection, descriptor is %d, ip is %s, port is %d\n", new_sd, inet_ntoa(address.sin_addr), ntohs(address.sin_port));
+            printf("New connection, descriptor is %d, ip is %s, port is %d\n", new_sd, inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 
             int flag = 0;
             // add new socket to array

@@ -83,12 +83,12 @@ int main(int argc, char *argv[])
         printf("Lambda %d:\n", lambda);
     	for (i = 0; i < 5000; i++) {
             timeToNext--;
-            printf("timeslot %d, timetonext %d\n", i, timeToNext);
+            // printf("timeslot %d, timetonext %d\n", i, timeToNext);
             // if supposed to send
             if (timeToNext == 0) {
                 memset(message, 'a', sizeof(message));
         		length = write(sockfd, message, sizeof(message));
-        		printf("Sending in timeslot %d\n", i);
+        		// printf("Sending in timeslot %d\n", i);
         		if (length < 0) {
         			fprintf(stderr,"ERROR writing to socket\n");
         			exit(0);
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
             length = 0;
             // if sent this timeslot, wait 2x timeslots to receive response
             // if didn't send this timeslot, select will take up timeslot (timeout)
-            slotTime.tv_sec = 1;
+            slotTime.tv_sec = 0;
             slotTime.tv_usec = 800;
             selected = select(FD_SETSIZE, &set, (fd_set *)0, (fd_set *)0, &slotTime);
             if (timeToNext < 1) {
@@ -116,14 +116,14 @@ int main(int argc, char *argv[])
             if (length > 0) {
                 // if collision, compute backoff until attempt retransmission
                 if (length == 9) {
-                    printf("Collision sending in timeslot %d\n", i);
+                    // printf("Collision sending in timeslot %d\n", i);
                     collisions++;
                     timeToNext = computeBackoff(collisions);
                 }
 
                 // if success, compute next transmission
                 else {
-                    printf("Success sending in timeslot %d\n", i);
+                    // printf("Success sending in timeslot %d\n", i);
                     timeToNext = computeSend(lambda);
                     successes[lambda]++;
                     collisions = 0;
@@ -132,6 +132,7 @@ int main(int argc, char *argv[])
 
             // dunno what else happens
             else {
+                if (timeToNext < 0)
                 timeToNext = 1;
                 //printf("Got %d from recvfrom function in timeslot %d\n", length, i);
             }
