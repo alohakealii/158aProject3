@@ -51,7 +51,10 @@ int main(int argc, char *argv[])
 
     // socket data
     fd_set readfds;
-    int client_socket[MAX_CONNECTIONS] = {0};
+    int client_socket[MAX_CONNECTIONS];
+    int i;
+    for (i = 0; i < MAX_CONNECTIONS; i++)
+        client_socket[i] = -1;
     int max_sd, sd, new_sd;
 
     // message buffers
@@ -63,7 +66,6 @@ int main(int argc, char *argv[])
     // other variables used in infinite loop
     int length = 0;
     int value;
-    int i;
     struct timeval slotTime;
 
     printf("Entering infinite loop\n");
@@ -72,6 +74,7 @@ int main(int argc, char *argv[])
         // clear and add main sockfd to set
         FD_ZERO(&readfds);
         FD_SET(sockfd, &readfds);
+        printf("Added sockfd to FD_SET\n");
 
         max_sd = sockfd;
 
@@ -80,14 +83,16 @@ int main(int argc, char *argv[])
         {
             sd = client_socket[i];
              
-            if(sd > 0)
+            if(sd > -1) {
                 FD_SET(sd , &readfds);
+                printf("Added socket %d to FD_SET\n", sd);
+            }
              
             if(sd > max_sd)
                 max_sd = sd;
         }
 
-        slotTime.tv_sec = 2;
+        slotTime.tv_sec = 1;
         slotTime.tv_usec = 800;
 
         // for a slot time, wait to check if something happened on a socket
@@ -107,20 +112,23 @@ int main(int argc, char *argv[])
 
             printf("New connection, descriptor is %d, ip is %s, port is %d\n", new_sd, inet_ntoa(address.sin_addr), ntohs(address.sin_port));
 
+            int flag = 0;
             // add new socket to array
             for (i = 0; i < MAX_CONNECTIONS; i++) 
             {
                 //if position is empty
-                if( client_socket[i] == 0 )
+                if( client_socket[i] == -1 && flag == 0 )
                 {
                     client_socket[i] = new_sd;
-                    printf("Adding to list of sockets as %d\n" , i);                     
+                    printf("Adding socket %d to list of sockets as %d\n", new_sd ,i); 
+                    flag = 1;
                 }
             }
         }
 
         // if a client socket has data
         if (FD_ISSET(client_socket[0], &readfds)) {
+            printf("Data from client_socket[0]\n");
             length = read(client_socket[0], message, sizeof(message));
             if (length < 0) {
                 fprintf(stderr, "ERROR read client 0\n");
