@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     int client_socket[MAX_CONNECTIONS];
     int i;
     for (i = 0; i < MAX_CONNECTIONS; i++)
-        client_socket[i] = -1;
+        client_socket[i] = 0;
     int max_sd, sd, new_sd;
 
     // message buffers
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
         {
             sd = client_socket[i];
              
-            if(sd > -1) {
+            if(sd > 0) {
                 FD_SET(sd , &readfds);
                 printf("Added socket %d to FD_SET\n", sd);
             }
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
             for (i = 0; i < MAX_CONNECTIONS; i++) 
             {
                 //if position is empty
-                if( client_socket[i] == -1 && flag == 0 )
+                if( client_socket[i] == 0 && flag == 0 )
                 {
                     client_socket[i] = new_sd;
                     printf("Adding socket %d to list of sockets as %d\n", new_sd ,i); 
