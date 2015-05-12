@@ -18,17 +18,23 @@ int max(int n, int m) {
 	return n;
 }
 
-int max_array(int a[], int num_elements)
-{
+int max_array(int a[], int num_elements){
    int i, max = -1;
-   for (i=0; i<num_elements; i++)
+   for (i = 0; i < num_elements; i++)
    {
-	 if (a[i]>max)
+	 if (a[i] > max)
 	 {
-	    max=a[i];
+	    max = a[i];
 	 }
    }
    return(max);
+}
+
+int add_array(int a[], int num_elements){
+	int i, sum = 0;
+	for(i = 0; i < num_elements; i++)
+		sum += a[i];
+	return sum;
 }
 
 int nextTransmission(int lambda) {
@@ -44,7 +50,7 @@ int computeBackoff(int n) {
 	return rand() % k;
 }
 
-void main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
 	int lambda = 200;
 	int stations_ = 20;
 	int p = 512;
@@ -81,6 +87,9 @@ void main(int argc, char *argv[]) {
 			int currentCollisionCount[MAX_STATIONS] = {1};
 			int lastCollisiondCount[MAX_STATIONS] = {0};
 
+			int counterdelay[MAX_STATIONS] = {0};
+			int delayjitter[MAX_STATIONS][4000] = {{0}};
+
 			int T = 0;
 
 			// loop for all STATIONS to transmit
@@ -104,12 +113,15 @@ void main(int argc, char *argv[]) {
 				// at time T, then send.
 				if (sending == 1 && sendingIndex != -1) {
 					if (nextTimeToSend[sendingIndex] == T) {
+						int dif = T - lastTimeSent[sendingIndex];
 						lastTimeSent[sendingIndex] = timeSent[sendingIndex];
 						timeSent[sendingIndex] = T;
-						transmissionsSent[sendingIndex]++;
 						lastCollisiondCount[sendingIndex] = currentCollisionCount[sendingIndex];
 						currentCollisionCount[sendingIndex] = 0;
 						nextTimeToSend[sendingIndex] += nextTransmission(lambda);
+
+						transmissionsSent[sendingIndex]++;
+						delayjitter[sendingIndex][counterdelay[sendingIndex]++] = dif;
 					}
 				}
 				// if more than one STATION wants to send in the interval, check if something tried
@@ -121,7 +133,10 @@ void main(int argc, char *argv[]) {
 							lastCollisionTime[i] = nextTimeToSend[i];
 							currentCollisionCount[i] = lastCollisiondCount[i];
 							currentCollisionCount[i]++;
+							
 							transmissionsSent[i]--;
+							delayjitter[i][counterdelay[i]--] = 0;
+
 							while (nextTimeToSend[i] <= T)
 								nextTimeToSend[i] += computeBackoff(currentCollisionCount[i]);
 						}
@@ -138,6 +153,25 @@ void main(int argc, char *argv[]) {
 				T++;
 			}
 
+			int a;
+			float avgstandev = 0, avgmean = 0;
+			for(a = 0; a < stations_; a++){
+				float sumdev = 0;
+				float mean = add_array(delayjitter[a], transmissionsSent[a]);
+				mean /= transmissionsSent[a];
+				avgmean += mean;
+				int b;
+				for(b = 0; b < transmissionsSent[a]; b++){
+					sumdev += (delayjitter[a][b] - mean) * (delayjitter[a][b] - mean);
+				}
+
+				float standev = sqrt(sumdev/b);
+				avgstandev += standev;
+				printf("Standard Deviation Lambda %2d, Station %2d: %6f\n", lambda, a, standev);
+			}
+			avgstandev /= a;
+			avgmean /= a;
+
 			// find the max timeSent, divide by number of STATIONS to get contention interval
 			int maximum = 0;
 			int i;
@@ -147,7 +181,7 @@ void main(int argc, char *argv[]) {
 			contentionInterval[iteration] = maximum / stations_;
 
 			int z;
-			printf("Time Sent:          ");
+			printf("\nTime Sent:          ");
 			for(z = 0; z < stations_; z++){
 				printf("%6d ", timeSent[z]);
 			}
@@ -167,9 +201,22 @@ void main(int argc, char *argv[]) {
 			for(z = 0; z < stations_; z++){
 				printf("%6d ", transmissionsSent[z]);
 			}
-			printf("\n\n");/*
+			printf("\n\n");
 
-			printf("Time Sent: ");
+			printf("Throughput: ");
+			int ans = add_array(transmissionsSent, stations_);
+			ans *= p;
+			ans /= (200000*.0000512);
+			printf("%6dbps\n", ans);
+
+			printf("Average Delay: ");
+			printf("%6fs\n", avgmean);
+
+			printf("Average Delay Jitter: ");
+			printf("%6f\n\n", avgstandev);
+
+
+			/*printf("Time Sent: ");
 				printf("%6d ", max_array(timeSent, stations_));
 			printf("\nNext Time to Send:  ");
 				printf("%6d ", max_array(nextTimeToSend, stations_));
@@ -187,14 +234,5 @@ void main(int argc, char *argv[]) {
 		if(defrun != 0)
 			break;
 
-		// find minimum contention interval
-		int minimum = 9999;
-		int sumContention = 0;
-		int i;
-		for (i = 0; i < ITERATIONS; i++) {
-			minimum = min(minimum, contentionInterval[i]);
-			sumContention += contentionInterval[i];
-		}
-		printf("Lambda %2d minimum contention interval = %d\nAverage contention interval = %d\n\n", lambda, minimum, sumContention/ITERATIONS);
 	}
 }
