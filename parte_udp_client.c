@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    fd_set set;
+    fd_set set, readset;
     FD_ZERO(&set);
     FD_SET(sockfd, &set);
 
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
     
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &slotTime, sizeof(slotTime));
 
-    int successes[20] = {0};
+    int successes[21] = {0};
     int selected = 0;
 
     int i;
@@ -80,8 +80,9 @@ int main(int argc, char *argv[])
 
     int lambda;
     for (lambda = 20; lambda > 3; lambda -= 2) {
-        printf("Lambda %d:\n", lambda);
+        // printf("Lambda %d:\n", lambda);
     	for (i = 0; i < 5000; i++) {
+            readset = set;
             timeToNext--;
             // printf("timeslot %d, timetonext %d\n", i, timeToNext);
             // if supposed to send
@@ -101,21 +102,24 @@ int main(int argc, char *argv[])
             // if didn't send this timeslot, select will take up timeslot (timeout)
             slotTime.tv_sec = 0;
             slotTime.tv_usec = 800;
-            selected = select(FD_SETSIZE, &set, (fd_set *)0, (fd_set *)0, &slotTime);
+            selected = select(FD_SETSIZE, &readset, (fd_set *)0, (fd_set *)0, &slotTime);
             if (timeToNext < 1) {
                 if (selected < 0)
                     printf("Error on select\n");
                 // else if (selected == 0)
                 //     printf("Timeout\n");
                 else if (selected != 0) {
+                    // printf("Message is %d bytes\n", strlen(message));
                     length = read(sockfd, &message, sizeof(message));
-                    printf("Read %d bytes\n", length);
+                    // printf("Read %d bytes\n", length);
                 }
             }
 
             if (length > 0) {
+                // printf("Message: %s\n", message);
                 // if collision, compute backoff until attempt retransmission
-                if (length == 9) {
+                if (length > 8) {
+                    // printf("Message: %s\n", message);
                     // printf("Collision sending in timeslot %d\n", i);
                     collisions++;
                     timeToNext = computeBackoff(collisions);
@@ -133,7 +137,7 @@ int main(int argc, char *argv[])
             // dunno what else happens
             else {
                 if (timeToNext < 0)
-                timeToNext = 1;
+                    timeToNext = 1;
                 //printf("Got %d from recvfrom function in timeslot %d\n", length, i);
             }
     	}
@@ -144,7 +148,7 @@ int main(int argc, char *argv[])
 
     // print final output
     for (lambda = 20; lambda > 3; lambda -= 2) {
-        printf("Lambda %2d, packets transmitted: %4d\n", lambda, successes[lambda]);
+        printf("Lambda %2d, packets: %4d, throughput: %4d, avg delay: %3d, load: %01.2f\n", lambda, successes[lambda], successes[lambda]*1024*8/5000, 5000/successes[lambda], 2.0/(double)lambda);
     }
     return 0;
 }
