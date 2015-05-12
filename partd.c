@@ -153,24 +153,24 @@ int main(int argc, char *argv[]) {
 				T++;
 			}
 
-			int a;
+			int numStations;
 			float avgstandev = 0, avgmean = 0;
-			for(a = 0; a < stations_; a++){
+			for(numStations = 0; numStations < stations_; numStations++){
 				float sumdev = 0;
-				float mean = add_array(delayjitter[a], transmissionsSent[a]);
-				mean /= transmissionsSent[a];
+				float mean = add_array(delayjitter[numStations], transmissionsSent[numStations]);
+				mean /= transmissionsSent[numStations];
 				avgmean += mean;
-				int b;
-				for(b = 0; b < transmissionsSent[a]; b++){
-					sumdev += (delayjitter[a][b] - mean) * (delayjitter[a][b] - mean);
+				int numTransmissions;
+				for(numTransmissions = 0; numTransmissions < transmissionsSent[numStations]; numTransmissions++){
+					sumdev += (delayjitter[numStations][numTransmissions] - mean) * (delayjitter[numStations][numTransmissions] - mean);
 				}
 
-				float standev = sqrt(sumdev/b);
+				float standev = sqrt(sumdev/numTransmissions);
 				avgstandev += standev;
-				printf("Standard Deviation Lambda %2d, Station %2d: %6f\n", lambda, a, standev);
+				printf("Standard Deviation Lambda %2d, Station %2d: %6f\n", lambda, numStations, standev);
 			}
-			avgstandev /= a;
-			avgmean /= a;
+			avgstandev /= numStations;
+			avgmean /= numStations;
 
 			// find the max timeSent, divide by number of STATIONS to get contention interval
 			int maximum = 0;
